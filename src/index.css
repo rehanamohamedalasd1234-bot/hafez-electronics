@@ -1,0 +1,27 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  font-family: "Inter", "Noto Sans Arabic", "Segoe UI", Tahoma, sans-serif;
+  color: #101828;
+  background: #f8fafc;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-optical-sizing: auto;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 320px; min-height: 100vh; }
+button, input { font: inherit; }
+button { cursor: pointer; }
+.panel { border: 1px solid #e8edf3; border-radius: 16px; background: #fff; box-shadow: 0 2px 6px rgb(16 24 40 / 2%); }
+
+@media print {
+  .sidebar, header, button, input { display: none !important; }
+  main { margin: 0 !important; }
+  body { background: white; }
+  .panel { box-shadow: none; }
+}
