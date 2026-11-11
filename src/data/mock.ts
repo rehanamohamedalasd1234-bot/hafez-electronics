@@ -39,6 +39,12 @@ export type SalesInvoice = {
   date: string;
   total: number;
   cost_total: number;
+  customer?: string;
+  phone?: string;
+  payment_method?: 'cash' | 'card' | 'transfer';
+  items_count?: number;
+  discount?: number;
+  tax?: number;
 };
 
 export type PurchaseInvoice = {
