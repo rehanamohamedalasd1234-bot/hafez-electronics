@@ -23,7 +23,6 @@ import {
   ShoppingCart,
   Smartphone,
   Tag,
-  Trash2,
   TrendingUp,
   Wallet,
   X,
