@@ -17,6 +17,7 @@ export type Product = {
   cost: number;
   stock: number;
   spec: string;
+  imageUrl?: string;
   icon: LucideIcon;
   tint: string;
   surface: string;
@@ -31,6 +32,23 @@ export type Ad = {
   start_date: string;
   end_date: string;
   is_active: boolean;
+};
+
+export type SalesInvoice = {
+  id: string;
+  date: string;
+  total: number;
+  cost_total: number;
+};
+
+export type PurchaseInvoice = {
+  id: string;
+  date: string;
+  supplier: string;
+  productName: string;
+  quantity: number;
+  unitCost: number;
+  total: number;
 };
 
 function dateOffset(days: number) {
@@ -64,7 +82,7 @@ export const initialAds: Ad[] = [
     id: 'ad-3',
     type: 'video',
     url: 'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4',
-    title: 'فيديو تجريبي — استبدل الرابط بفيديو إعلانك',
+    title: 'فيديو تجريبي',
     duration_seconds: 8,
     start_date: dateOffset(-1),
     end_date: dateOffset(15),
@@ -82,6 +100,7 @@ export const initialProducts: Product[] = [
     cost: 3750,
     stock: 8,
     spec: '256 جيجا · تيتانيوم طبيعي',
+    imageUrl: 'https://images.unsplash.com/photo-1592899677977-9c10ca588bbd?auto=format&fit=crop&w=900&q=80',
     icon: Smartphone,
     tint: 'text-slate-700',
     surface: 'bg-slate-100',
@@ -95,6 +114,7 @@ export const initialProducts: Product[] = [
     cost: 760,
     stock: 3,
     spec: 'الجيل الثاني · عزل ضوضاء',
+    imageUrl: 'https://images.unsplash.com/photo-1606220945770-b5b6c2c55bf1?auto=format&fit=crop&w=900&q=80',
     icon: Headphones,
     tint: 'text-blue-700',
     surface: 'bg-blue-50',
@@ -108,6 +128,7 @@ export const initialProducts: Product[] = [
     cost: 1200,
     stock: 12,
     spec: 'Series 9 · مقاس 45 مم',
+    imageUrl: 'https://images.unsplash.com/photo-1546868871-7041f2a55e12?auto=format&fit=crop&w=900&q=80',
     icon: Watch,
     tint: 'text-rose-700',
     surface: 'bg-rose-50',
@@ -121,6 +142,7 @@ export const initialProducts: Product[] = [
     cost: 2350,
     stock: 4,
     spec: '11 بوصة · Wi-Fi · 128 جيجا',
+    imageUrl: 'https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?auto=format&fit=crop&w=900&q=80',
     icon: Tablet,
     tint: 'text-violet-700',
     surface: 'bg-violet-50',
@@ -134,6 +156,7 @@ export const initialProducts: Product[] = [
     cost: 4900,
     stock: 6,
     spec: '13 بوصة · ذاكرة 16 جيجا',
+    imageUrl: 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?auto=format&fit=crop&w=900&q=80',
     icon: Laptop,
     tint: 'text-cyan-700',
     surface: 'bg-cyan-50',
@@ -150,6 +173,24 @@ export const initialProducts: Product[] = [
     icon: Zap,
     tint: 'text-amber-700',
     surface: 'bg-amber-50',
+  },
+];
+
+export const initialSales: SalesInvoice[] = [
+  { id: '#INV-2048', date: dateOffset(0), total: 4299, cost_total: 3750 },
+  { id: '#INV-2047', date: dateOffset(0), total: 1198, cost_total: 880 },
+  { id: '#INV-2045', date: dateOffset(-1), total: 1599, cost_total: 1200 },
+];
+
+export const initialPurchases: PurchaseInvoice[] = [
+  {
+    id: '#PUR-1001',
+    date: dateOffset(0),
+    supplier: 'شركة التقنية',
+    productName: 'ماك بوك Air M3',
+    quantity: 1,
+    unitCost: 4900,
+    total: 4900,
   },
 ];
 
