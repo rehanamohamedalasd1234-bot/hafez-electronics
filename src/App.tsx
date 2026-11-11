@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import {
   AlertTriangle,
   ArrowRight,
@@ -6,8 +6,6 @@ import {
   ClipboardList,
   LayoutDashboard,
   Menu,
-  Minus,
-  Plus,
   ShoppingBag,
   ShoppingCart,
   Tag,
