@@ -1,5 +1,10 @@
-import { Headphones, Laptop, Smartphone, Tablet, Watch, type LucideIcon } from 'lucide-react';
-
+import { Headphones, Laptop, Smartphone, Tablet, Watch, Zap, type LucideIcon } from 'lucide-react';
+export type Category =
+  | 'هواتف ذكية'
+  | 'سماعات'
+  | 'ساعات ذكية'
+  | 'أجهزة لوحية'
+  | 'لابتوبات';
 export type Product = {
   id: number;
   name: string;
