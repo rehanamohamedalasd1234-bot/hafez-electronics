@@ -37,6 +37,7 @@ import {
   type SalesInvoice,
 } from './data/mock';
 import type { OnlineOrder } from './pages/VisitorStore';
+import { supabase } from './lib/supabase';
 
 type AppData = {
   products: Product[];
@@ -107,6 +108,30 @@ function AppStateLayout() {
   const [ads, setAds] = usePersistentState('hafez-ads', initialAds);
   const [sales, setSales] = usePersistentState('hafez-sales', initialSales);
   const [purchases, setPurchases] = usePersistentState('hafez-purchases', initialPurchases);
+
+  useEffect(() => {
+    if (!supabase) return;
+    let active = true;
+    void supabase.from('products').select('id,name,category,barcode,price,cost,stock,spec,image_url').order('id').then(({ data, error }) => {
+      if (!active || error || !data?.length) return;
+      setProducts(data.map((row) => {
+        const fallback = initialProducts.find((item) => item.id === row.id);
+        return {
+          ...fallback,
+          id: row.id,
+          name: row.name,
+          category: row.category,
+          barcode: row.barcode,
+          price: Number(row.price),
+          cost: Number(row.cost),
+          stock: row.stock,
+          spec: row.spec,
+          imageUrl: row.image_url ?? undefined,
+        } as Product;
+      }));
+    });
+    return () => { active = false; };
+  }, [setProducts]);
 
   const context: AppData = {
     products,

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, CheckCircle2, Minus, PackageCheck, Plus, ShoppingBag, Trash2, Truck } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import type { Product } from '../data/mock';
+import { supabase } from '../lib/supabase';
 
 type CartItem = { productId: number; quantity: number };
 export type OnlineOrder = {
@@ -60,7 +61,40 @@ export function CheckoutPage({ products, setProducts }: VisitorProps) {
   const shipping = total >= 500 ? 0 : 25;
   const grandTotal = total + shipping;
   const update = (key: keyof typeof form, value: string) => setForm((current) => ({ ...current, [key]: value }));
-  const submit = (event: React.FormEvent) => { event.preventDefault(); if (!lines.length) return navigate('/cart'); setSubmitting(true); const order: OnlineOrder = { id: `#WEB-${Date.now()}`, createdAt: new Date().toISOString(), status: 'new', customer: { name: form.name, phone: form.phone, city: form.city, address: form.address, notes: form.notes }, paymentMethod: form.paymentMethod, items: lines.map((line) => ({ productId: line.product.id, name: line.product.name, price: line.product.price, quantity: line.quantity })), subtotal: total, shipping, total: grandTotal }; const orders = JSON.parse(localStorage.getItem(ordersKey) ?? '[]') as OnlineOrder[]; localStorage.setItem(ordersKey, JSON.stringify([order, ...orders])); setProducts((current) => current.map((product) => { const line = lines.find((item) => item.product.id === product.id); return line ? { ...product, stock: Math.max(0, product.stock - line.quantity) } : product; })); clear(); setTimeout(() => { setSubmitting(false); navigate(`/order-success?id=${encodeURIComponent(order.id)}`); }, 250); };
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!lines.length) return navigate('/cart');
+    setSubmitting(true);
+    const items = lines.map((line) => ({ product_id: line.product.id, quantity: line.quantity }));
+    let order: OnlineOrder;
+    if (supabase) {
+      const { data, error } = await supabase.rpc('create_online_order', {
+        p_customer_name: form.name,
+        p_customer_phone: form.phone,
+        p_city: form.city,
+        p_address: form.address,
+        p_notes: form.notes,
+        p_payment_method: form.paymentMethod,
+        p_shipping: shipping,
+        p_items: items,
+      });
+      if (error || !data?.[0]) {
+        setSubmitting(false);
+        window.alert(error?.message ?? 'تعذر تسجيل الطلب في قاعدة البيانات. حاول مرة أخرى.');
+        return;
+      }
+      const result = data[0] as { order_id: string; order_number: string; total: number };
+      order = { id: result.order_number, createdAt: new Date().toISOString(), status: 'new', customer: { name: form.name, phone: form.phone, city: form.city, address: form.address, notes: form.notes }, paymentMethod: form.paymentMethod, items: lines.map((line) => ({ productId: line.product.id, name: line.product.name, price: line.product.price, quantity: line.quantity })), subtotal: total, shipping, total: Number(result.total) };
+    } else {
+      order = { id: `#WEB-${Date.now()}`, createdAt: new Date().toISOString(), status: 'new', customer: { name: form.name, phone: form.phone, city: form.city, address: form.address, notes: form.notes }, paymentMethod: form.paymentMethod, items: lines.map((line) => ({ productId: line.product.id, name: line.product.name, price: line.product.price, quantity: line.quantity })), subtotal: total, shipping, total: grandTotal };
+      setProducts((current) => current.map((product) => { const line = lines.find((item) => item.product.id === product.id); return line ? { ...product, stock: Math.max(0, product.stock - line.quantity) } : product; }));
+    }
+    const orders = JSON.parse(localStorage.getItem(ordersKey) ?? '[]') as OnlineOrder[];
+    localStorage.setItem(ordersKey, JSON.stringify([order, ...orders]));
+    clear();
+    setSubmitting(false);
+    navigate(`/order-success?id=${encodeURIComponent(order.id)}`);
+  };
   return <div dir="rtl" className="min-h-screen bg-slate-50"><StoreHeader count={count} /><main className="mx-auto max-w-5xl p-4 sm:p-8"><div className="grid gap-5 lg:grid-cols-[1fr_360px]"><form onSubmit={submit} className="panel space-y-5 p-5 sm:p-7"><div><h1 className="text-2xl font-bold">إتمام الطلب</h1><p className="mt-1 text-sm text-slate-500">أدخل بيانات التوصيل وسنتواصل معك لتأكيد الطلب.</p></div><div className="grid gap-4 sm:grid-cols-2"><label className="text-sm font-semibold">الاسم الكامل<input required value={form.name} onChange={(e) => update('name', e.target.value)} className="mt-2 h-11 w-full rounded-lg border px-3 font-normal" /></label><label className="text-sm font-semibold">رقم الهاتف<input required type="tel" value={form.phone} onChange={(e) => update('phone', e.target.value)} className="mt-2 h-11 w-full rounded-lg border px-3 font-normal" /></label><label className="text-sm font-semibold">المدينة<input required value={form.city} onChange={(e) => update('city', e.target.value)} className="mt-2 h-11 w-full rounded-lg border px-3 font-normal" /></label><label className="text-sm font-semibold">العنوان بالتفصيل<input required value={form.address} onChange={(e) => update('address', e.target.value)} className="mt-2 h-11 w-full rounded-lg border px-3 font-normal" placeholder="الحي، الشارع، رقم المبنى" /></label></div><label className="block text-sm font-semibold">ملاحظات الطلب<textarea value={form.notes} onChange={(e) => update('notes', e.target.value)} className="mt-2 min-h-24 w-full rounded-lg border px-3 py-2 font-normal" placeholder="اختياري" /></label><fieldset><legend className="text-sm font-semibold">طريقة الدفع</legend><div className="mt-2 grid gap-3 sm:grid-cols-2"><label className={`rounded-lg border p-3 text-sm ${form.paymentMethod === 'cash_on_delivery' ? 'border-orange-400 bg-orange-50' : ''}`}><input type="radio" checked={form.paymentMethod === 'cash_on_delivery'} onChange={() => update('paymentMethod', 'cash_on_delivery')} className="ml-2" />الدفع عند الاستلام</label><label className={`rounded-lg border p-3 text-sm ${form.paymentMethod === 'card_on_delivery' ? 'border-orange-400 bg-orange-50' : ''}`}><input type="radio" checked={form.paymentMethod === 'card_on_delivery'} onChange={() => update('paymentMethod', 'card_on_delivery')} className="ml-2" />بطاقة عند الاستلام</label></div></fieldset><button disabled={submitting} className="w-full rounded-xl bg-orange-500 px-5 py-3 font-bold text-white disabled:opacity-50">{submitting ? 'جارٍ إرسال الطلب...' : 'تأكيد الطلب'}</button></form><aside className="panel h-fit p-5"><h2 className="font-bold">ملخص الطلب</h2><div className="mt-4 space-y-3">{lines.map((line) => <div key={line.product.id} className="flex justify-between gap-3 text-sm"><span>{line.product.name} × {line.quantity}</span><span>{money(line.product.price * line.quantity)}</span></div>)}</div><div className="mt-5 space-y-2 border-t pt-4 text-sm"><div className="flex justify-between"><span>المنتجات</span><span>{money(total)}</span></div><div className="flex justify-between"><span>التوصيل</span><span>{shipping ? money(shipping) : 'مجاني'}</span></div><div className="flex justify-between pt-2 text-lg font-bold"><span>الإجمالي</span><span className="text-orange-600">{money(grandTotal)}</span></div></div></aside></div></main></div>;
 }
 
