@@ -23,9 +23,9 @@ import {
   Routes,
   useOutletContext,
 } from 'react-router-dom';
-import AdsCarousel from './components/AdsCarousel';
 import AdsManager from './pages/AdsManager';
 import PosPage from './pages/PosPage';
+import { CartPage, CheckoutPage, OrderSuccessPage, Storefront } from './pages/VisitorStore';
 import {
   initialAds,
   initialProducts,
@@ -36,6 +36,7 @@ import {
   type PurchaseInvoice,
   type SalesInvoice,
 } from './data/mock';
+import type { OnlineOrder } from './pages/VisitorStore';
 
 type AppData = {
   products: Product[];
@@ -78,9 +79,13 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route element={<AppStateLayout />}>
-          <Route index element={<Storefront />} />
+          <Route index element={<VisitorRoute page="store" />} />
+          <Route path="cart" element={<VisitorRoute page="cart" />} />
+          <Route path="checkout" element={<VisitorRoute page="checkout" />} />
+          <Route path="order-success" element={<OrderSuccessPage />} />
           <Route path="admin" element={<AdminLayout />}>
             <Route index element={<AdminOverview />} />
+            <Route path="orders" element={<OnlineOrdersPage />} />
             <Route path="pos" element={<PosRoute />} />
             <Route path="inventory" element={<InventoryPage />} />
             <Route path="purchases" element={<PurchaseInvoicesPage />} />
@@ -122,11 +127,30 @@ function PosRoute() {
   return <PosPage products={products} setProducts={setProducts} setSales={setSales} />;
 }
 
+function OnlineOrdersPage() {
+  const [orders, setOrders] = useState<OnlineOrder[]>(() => {
+    try { return JSON.parse(localStorage.getItem('hafez-online-orders') ?? '[]') as OnlineOrder[]; } catch { return []; }
+  });
+  const statusLabels: Record<OnlineOrder['status'], string> = {
+    new: 'جديد', confirmed: 'تم التأكيد', preparing: 'قيد التجهيز', shipped: 'تم الشحن', delivered: 'تم التسليم', cancelled: 'ملغي',
+  };
+  const updateStatus = (id: string, status: OnlineOrder['status']) => {
+    const next = orders.map((order) => order.id === id ? { ...order, status } : order);
+    setOrders(next);
+    localStorage.setItem('hafez-online-orders', JSON.stringify(next));
+  };
+  return <section className="space-y-5" dir="rtl">
+    <div><p className="text-sm text-slate-500">طلبات المتجر الإلكتروني</p><h2 className="mt-1 text-2xl font-bold">طلبات الزوار</h2></div>
+    {!orders.length ? <div className="panel p-12 text-center text-slate-500">لا توجد طلبات أونلاين حتى الآن.</div> : <div className="space-y-4">{orders.map((order) => <article key={order.id} className="panel p-5"><div className="flex flex-wrap items-start justify-between gap-4"><div><p className="font-bold">{order.id} · {order.customer.name}</p><p className="mt-1 text-sm text-slate-500">{order.customer.phone} · {order.customer.city} · {order.customer.address}</p></div><div className="text-left"><p className="font-bold text-orange-600">{money(order.total)}</p><p className="mt-1 text-xs text-slate-500">{new Date(order.createdAt).toLocaleString('ar-SA')}</p></div></div><div className="mt-4 border-t pt-4 text-sm text-slate-600">{order.items.map((item) => <span key={item.productId} className="ml-3 inline-block">{item.name} × {item.quantity}</span>)}</div><div className="mt-4 flex flex-wrap items-center gap-3"><span className="text-sm font-semibold">حالة الطلب</span><select value={order.status} onChange={(event) => updateStatus(order.id, event.target.value as OnlineOrder['status'])} className="h-10 rounded-lg border bg-white px-3 text-sm">{Object.entries(statusLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select><span className="rounded-full bg-slate-100 px-3 py-1 text-xs">الدفع: {order.paymentMethod === 'cash_on_delivery' ? 'عند الاستلام' : 'بطاقة عند الاستلام'}</span></div></article>)}</div>}
+  </section>;
+}
+
 function AdminLayout() {
  const [menuOpen, setMenuOpen] = useState(false);
   const appData = useAppData();
   const links = [
     { to: '/admin', label: 'نظرة عامة', icon: LayoutDashboard, end: true },
+    { to: '/admin/orders', label: 'طلبات المتجر', icon: ClipboardList },
     { to: '/admin/pos', label: 'نقطة البيع', icon: ShoppingCart },
     { to: '/admin/inventory', label: 'المخزون والمنتجات', icon: Boxes },
     { to: '/admin/purchases', label: 'فواتير الشراء', icon: ClipboardList },
@@ -250,21 +274,11 @@ function Metric({ title, value, icon: Icon }: { title: string; value: string; ic
   return <div className="panel p-5"><div className="flex items-center justify-between text-slate-500"><span className="text-sm">{title}</span><Icon size={20} className="text-orange-500" /></div><p className="mt-4 text-xl font-bold">{value}</p></div>;
 }
 
-function Storefront() {
-  const { products, ads } = useAppData();
-  const [cart, setCart] = useState<Record<number, number>>({});
-  const cartCount = Object.values(cart).reduce((sum, quantity) => sum + quantity, 0);
-  const cartTotal = products.reduce((sum, product) => sum + product.price * (cart[product.id] ?? 0), 0);
-  const addToCart = (product: Product) => {
-    if (product.stock < 1) return;
-    setCart((current) => ({ ...current, [product.id]: Math.min(product.stock, (current[product.id] ?? 0) + 1) }));
-  };
-  return (
-    <div dir="rtl" className="min-h-screen bg-slate-50">
-      <header className="flex items-center justify-between bg-[#101828] px-5 py-4 text-white sm:px-10"><Link to="/" className="text-lg font-bold">حافظ للإلكترونيات الحديثة</Link><Link to="/admin" className="text-sm text-orange-300 hover:text-orange-200">دخول المالك</Link></header>
-      <main className="mx-auto max-w-7xl space-y-7 p-4 sm:p-8"><AdsCarousel ads={ads} /><section><h1 className="text-2xl font-bold">منتجاتنا</h1><p className="mt-1 text-sm text-slate-500">أحدث الأجهزة والإكسسوارات</p></section><section className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">{products.map((product) => { const available = product.stock > 0; return <article key={product.id} className="panel overflow-hidden">{product.imageUrl ? <img src={product.imageUrl} alt={product.name} className="h-52 w-full bg-slate-100 object-cover" /> : <div className={`flex h-52 items-center justify-center ${product.surface}`}><product.icon size={56} className={product.tint} /></div>}<div className="space-y-3 p-4"><div className="flex items-start justify-between gap-2"><div><p className="text-xs text-slate-500">{product.category}</p><h2 className="mt-1 font-bold">{product.name}</h2></div><span className={`shrink-0 rounded-full px-2.5 py-1 text-xs ${available ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>{available ? 'متوفر' : 'غير متوفر'}</span></div><p className="text-sm text-slate-500">{product.spec}</p><div className="flex items-center justify-between"><strong className="text-orange-600">{money(product.price)}</strong><button disabled={!available} onClick={() => addToCart(product)} className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300">أضف للسلة</button></div></div></article>; })}</section><section className="panel flex flex-wrap items-center justify-between gap-4 p-5"><div><p className="font-bold">سلة التسوق ({cartCount})</p><p className="mt-1 text-sm text-slate-500">الإجمالي: {money(cartTotal)}</p></div><button disabled={!cartCount} onClick={() => window.alert('واجهة إتمام الطلب تجريبية — لم يتم تسجيل طلب فعلي.')} className="rounded-xl bg-orange-500 px-5 py-3 text-sm font-semibold text-white disabled:opacity-40">إتمام الطلب</button></section></main>
-    </div>
-  );
+function VisitorRoute({ page }: { page: 'store' | 'cart' | 'checkout' }) {
+  const { products, setProducts } = useAppData();
+  if (page === 'cart') return <CartPage products={products} setProducts={setProducts} />;
+  if (page === 'checkout') return <CheckoutPage products={products} setProducts={setProducts} />;
+  return <Storefront products={products} setProducts={setProducts} />;
 }
 
 function InventoryPage() {
