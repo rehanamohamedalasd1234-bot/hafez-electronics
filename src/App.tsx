@@ -99,7 +99,8 @@ function AppStateLayout() {
 }
 
 function AdminLayout() {
-  const [menuOpen, setMenuOpen] = useState(false);
+ const [menuOpen, setMenuOpen] = useState(false);
+  const appData = useAppData();
   const links = [
     { to: '/admin', label: 'نظرة عامة', icon: LayoutDashboard, end: true },
     { to: '/admin/pos', label: 'نقطة البيع', icon: ShoppingCart },
@@ -178,7 +179,7 @@ function AdminLayout() {
           <span className="text-xs text-slate-500">البيانات تجريبية ومحلية</span>
         </header>
         <div className="mx-auto max-w-[1400px] space-y-5 p-4 sm:p-7">
-          <Outlet />
+          <Outlet context={appData} />
         </div>
       </main>
     </div>
