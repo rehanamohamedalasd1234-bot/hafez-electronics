@@ -37,7 +37,7 @@ function useCart(products: Product[]) {
 }
 
 function StoreHeader({ count }: { count: number }) {
-  return <header className="sticky top-0 z-20 flex items-center justify-between border-b border-white/10 bg-[#101828]/95 px-5 py-4 text-white backdrop-blur sm:px-10"><Link to="/" className="text-lg font-bold">حافظ للإلكترونيات الحديثة</Link><nav className="flex items-center gap-4 text-sm"><Link to="/" className="hidden text-slate-300 hover:text-white sm:inline">الرئيسية</Link><Link to="/cart" className="relative rounded-lg bg-white/10 px-3 py-2 text-orange-200"><ShoppingBag className="ml-1 inline" size={17} />السلة{count > 0 && <span className="mr-1 rounded-full bg-orange-500 px-1.5 text-xs text-white">{count}</span>}</Link><Link to="/admin" className="hidden text-orange-300 hover:text-orange-200 sm:inline">دخول المالك</Link></nav></header>;
+  return <header className="sticky top-0 z-20 flex items-center justify-between border-b border-white/10 bg-[#101828]/95 px-5 py-4 text-white backdrop-blur sm:px-10"><Link to="/" className="text-lg font-bold">حافظ للإلكترونيات الحديثة</Link><nav className="flex items-center gap-4 text-sm"><Link to="/" className="hidden text-slate-300 hover:text-white sm:inline">الرئيسية</Link><Link to="/cart" className="relative rounded-lg bg-white/10 px-3 py-2 text-orange-200"><ShoppingBag className="ml-1 inline" size={17} />السلة{count > 0 && <span className="mr-1 rounded-full bg-orange-500 px-1.5 text-xs text-white">{count}</span>}</Link><Link to="/admin" className="text-xs text-orange-300 hover:text-orange-200 sm:text-sm"><span className="sm:hidden">المالك</span><span className="hidden sm:inline">دخول المالك</span></Link></nav></header>;
 }
 
 export function Storefront({ products, setProducts: _setProducts }: VisitorProps) {

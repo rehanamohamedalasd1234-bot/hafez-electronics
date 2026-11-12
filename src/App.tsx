@@ -5,7 +5,6 @@ import {
   Boxes,
   ClipboardList,
   LayoutDashboard,
-  LogOut,
   Menu,
   ShoppingBag,
   ShoppingCart,
@@ -23,7 +22,6 @@ import {
   Route,
   Routes,
   Navigate,
-  useLocation,
   useOutletContext,
 } from 'react-router-dom';
 import AdsManager from './pages/AdsManager';
@@ -41,8 +39,6 @@ import {
 } from './data/mock';
 import type { OnlineOrder } from './pages/VisitorStore';
 import { supabase } from './lib/supabase';
-import OwnerLoginPage from './pages/OwnerLoginPage';
-import type { Session } from '@supabase/supabase-js';
 
 type AppData = {
   products: Product[];
@@ -53,8 +49,6 @@ type AppData = {
   setSales: React.Dispatch<React.SetStateAction<SalesInvoice[]>>;
   purchases: PurchaseInvoice[];
   setPurchases: React.Dispatch<React.SetStateAction<PurchaseInvoice[]>>;
-  session: Session | null;
-  authLoading: boolean;
 };
 
 const currency = new Intl.NumberFormat('ar-SA', { maximumFractionDigits: 0 });
@@ -82,25 +76,6 @@ function useAppData() {
   return useOutletContext<AppData>();
 }
 
-function useSupabaseSession() {
-  const [session, setSession] = useState<Session | null>(null);
-  const [authLoading, setAuthLoading] = useState(Boolean(supabase));
-
-  useEffect(() => {
-    if (!supabase) { setAuthLoading(false); return; }
-    let active = true;
-    void supabase.auth.getSession().then(({ data }) => {
-      if (active) { setSession(data.session); setAuthLoading(false); }
-    });
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      if (active) setSession(nextSession);
-    });
-    return () => { active = false; listener.subscription.unsubscribe(); };
-  }, []);
-
-  return { session, authLoading };
-}
-
 export default function App() {
   return (
     <BrowserRouter>
@@ -110,17 +85,15 @@ export default function App() {
           <Route path="cart" element={<VisitorRoute page="cart" />} />
           <Route path="checkout" element={<VisitorRoute page="checkout" />} />
           <Route path="order-success" element={<OrderSuccessPage />} />
-          <Route path="owner-login" element={<OwnerLoginPage />} />
-          <Route path="admin" element={<ProtectedAdminRoute />}>
-            <Route element={<AdminLayout />}>
-              <Route index element={<AdminOverview />} />
-              <Route path="orders" element={<OnlineOrdersPage />} />
-              <Route path="pos" element={<PosRoute />} />
-              <Route path="inventory" element={<InventoryPage />} />
-              <Route path="purchases" element={<PurchaseInvoicesPage />} />
-              <Route path="reports" element={<ReportsPage />} />
-              <Route path="ads" element={<AdsPage />} />
-            </Route>
+          <Route path="owner-login" element={<Navigate to="/admin" replace />} />
+          <Route path="admin" element={<AdminLayout />}>
+            <Route index element={<AdminOverview />} />
+            <Route path="orders" element={<OnlineOrdersPage />} />
+            <Route path="pos" element={<PosRoute />} />
+            <Route path="inventory" element={<InventoryPage />} />
+            <Route path="purchases" element={<PurchaseInvoicesPage />} />
+            <Route path="reports" element={<ReportsPage />} />
+            <Route path="ads" element={<AdsPage />} />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Route>
@@ -137,7 +110,6 @@ function AppStateLayout() {
   const [ads, setAds] = usePersistentState('hafez-ads', initialAds);
   const [sales, setSales] = usePersistentState('hafez-sales', initialSales);
   const [purchases, setPurchases] = usePersistentState('hafez-purchases', initialPurchases);
-  const { session, authLoading } = useSupabaseSession();
 
   useEffect(() => {
     if (!supabase) return;
@@ -172,19 +144,9 @@ function AppStateLayout() {
     setSales,
     purchases,
     setPurchases,
-    session,
-    authLoading,
   };
 
   return <Outlet context={context} />;
-}
-
-function ProtectedAdminRoute() {
-  const { session, authLoading } = useAppData();
-  const location = useLocation();
-  if (authLoading) return <main dir="rtl" className="grid min-h-screen place-items-center bg-slate-50 text-slate-500">جارٍ التحقق من جلسة المالك...</main>;
-  if (!session) return <Navigate to="/owner-login" replace state={{ from: location.pathname }} />;
-  return <Outlet />;
 }
 
 function PosRoute() {
@@ -290,16 +252,11 @@ function AdminLayout() {
             <h1 className="font-bold">لوحة تحكم المالك</h1>
           </div>
           <div className="flex items-center gap-3">
-            <span className="hidden text-xs text-slate-500 sm:inline">{appData.session?.user.email}</span>
-            <button
-              onClick={() => { void supabase?.auth.signOut(); }}
-              className="flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-600 hover:border-orange-300 hover:text-orange-600"
-            >
-              <LogOut size={15} /> تسجيل الخروج
-            </button>
+            <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">دخول مفتوح</span>
           </div>
         </header>
         <div className="mx-auto max-w-[1400px] space-y-5 p-4 sm:p-7">
+          <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-900">تنبيه: لوحة الإدارة مفتوحة بدون تسجيل دخول؛ أي شخص يصل إلى هذا الرابط يستطيع استخدامها.</p>
           <Outlet context={appData} />
         </div>
       </main>
