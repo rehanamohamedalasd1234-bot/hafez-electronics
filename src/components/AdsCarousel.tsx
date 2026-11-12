@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { Ad } from '../data/mock';
+import { useResolvedMediaUrl } from '../lib/localMedia';
 
 function isCurrentlyActive(ad: Ad, today: string) {
   return ad.is_active && ad.start_date <= today && ad.end_date >= today;
@@ -29,9 +30,10 @@ export default function AdsCarousel({ ads }: { ads: Ad[] }) {
     return () => window.clearTimeout(timer);
   }, [activeAds, activeIndex]);
 
-  if (activeAds.length === 0) return null;
-
   const ad = activeAds[activeIndex];
+  const mediaUrl = useResolvedMediaUrl(ad?.url ?? '');
+
+  if (!ad) return null;
 
   return (
     <section
@@ -41,7 +43,7 @@ export default function AdsCarousel({ ads }: { ads: Ad[] }) {
       {ad.type === 'video' ? (
         <video
           key={ad.id}
-          src={ad.url}
+          src={mediaUrl || undefined}
           autoPlay
           muted
           playsInline
@@ -50,7 +52,7 @@ export default function AdsCarousel({ ads }: { ads: Ad[] }) {
       ) : (
         <img
           key={ad.id}
-          src={ad.url}
+          src={mediaUrl || undefined}
           alt={ad.title}
           className="absolute inset-0 h-full w-full object-cover"
         />

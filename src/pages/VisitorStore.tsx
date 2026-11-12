@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, CheckCircle2, Minus, PackageCheck, Plus, ShoppingBag, Trash2, Truck } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import type { Product } from '../data/mock';
+import AdsCarousel from '../components/AdsCarousel';
+import type { Ad, Product } from '../data/mock';
 import { supabase } from '../lib/supabase';
 
 type CartItem = { productId: number; quantity: number };
@@ -17,7 +18,11 @@ export type OnlineOrder = {
   total: number;
 };
 
-type VisitorProps = { products: Product[]; setProducts: React.Dispatch<React.SetStateAction<Product[]>> };
+type VisitorProps = {
+  products: Product[];
+  setProducts: React.Dispatch<React.SetStateAction<Product[]>>;
+  ads?: Ad[];
+};
 const money = (value: number) => `${new Intl.NumberFormat('ar-SA', { maximumFractionDigits: 0 }).format(value)} ر.س`;
 const cartKey = 'hafez-online-cart';
 const ordersKey = 'hafez-online-orders';
@@ -40,11 +45,66 @@ function StoreHeader({ count }: { count: number }) {
   return <header className="sticky top-0 z-20 flex items-center justify-between border-b border-white/10 bg-[#101828]/95 px-5 py-4 text-white backdrop-blur sm:px-10"><Link to="/" className="text-lg font-bold">حافظ للإلكترونيات الحديثة</Link><nav className="flex items-center gap-4 text-sm"><Link to="/" className="hidden text-slate-300 hover:text-white sm:inline">الرئيسية</Link><Link to="/cart" className="relative rounded-lg bg-white/10 px-3 py-2 text-orange-200"><ShoppingBag className="ml-1 inline" size={17} />السلة{count > 0 && <span className="mr-1 rounded-full bg-orange-500 px-1.5 text-xs text-white">{count}</span>}</Link><Link to="/admin" className="text-xs text-orange-300 hover:text-orange-200 sm:text-sm"><span className="sm:hidden">المالك</span><span className="hidden sm:inline">دخول المالك</span></Link></nav></header>;
 }
 
-export function Storefront({ products, setProducts: _setProducts }: VisitorProps) {
+export function Storefront({ products, setProducts: _setProducts, ads = [] }: VisitorProps) {
   const { add, count } = useCart(products);
   const [query, setQuery] = useState('');
   const filtered = useMemo(() => products.filter((product) => `${product.name} ${product.category}`.toLowerCase().includes(query.toLowerCase())), [products, query]);
-  return <div dir="rtl" className="min-h-screen bg-slate-50"><StoreHeader count={count} /><main className="mx-auto max-w-7xl space-y-8 p-4 sm:p-8"><section className="rounded-3xl bg-[#162237] p-7 text-white sm:p-12"><p className="text-sm text-orange-300">متجر حافظ للإلكترونيات</p><h1 className="mt-3 text-3xl font-bold sm:text-5xl">كل ما تحتاجه من التقنية الحديثة</h1><p className="mt-4 max-w-xl text-sm leading-7 text-slate-300">منتجات أصلية، عروض مميزة، وتجربة شراء سهلة مع توصيل إلى باب منزلك.</p><Link to="#products" className="mt-6 inline-flex rounded-xl bg-orange-500 px-5 py-3 text-sm font-bold text-white">تسوق الآن <ArrowLeft className="mr-2" size={17} /></Link></section><section id="products" className="space-y-4"><div className="flex flex-wrap items-end justify-between gap-3"><div><h2 className="text-2xl font-bold">منتجاتنا</h2><p className="mt-1 text-sm text-slate-500">اختر منتجاتك وأضفها إلى السلة</p></div><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="بحث في المنتجات" className="h-11 w-full rounded-xl border border-slate-200 bg-white px-4 sm:w-64" /></div><div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">{filtered.map((product) => <article key={product.id} className="panel overflow-hidden"><div className="relative">{product.imageUrl ? <img src={product.imageUrl} alt={product.name} className="h-52 w-full object-cover" /> : <div className={`flex h-52 items-center justify-center ${product.surface}`}><product.icon size={56} className={product.tint} /></div>}{product.stock < 5 && product.stock > 0 && <span className="absolute right-3 top-3 rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-800">باقي {product.stock} فقط</span>}</div><div className="space-y-3 p-4"><p className="text-xs text-slate-500">{product.category}</p><h3 className="font-bold">{product.name}</h3><p className="text-sm text-slate-500">{product.spec}</p><div className="flex items-center justify-between"><strong className="text-lg text-orange-600">{money(product.price)}</strong><button disabled={product.stock < 1} onClick={() => add(product)} className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white disabled:bg-slate-300">{product.stock ? 'أضف للسلة' : 'غير متوفر'}</button></div></div></article>)}</div></section><section className="grid gap-4 sm:grid-cols-3"><div className="panel p-5"><Truck className="text-orange-500" /><h3 className="mt-3 font-bold">توصيل موثوق</h3><p className="mt-1 text-sm text-slate-500">نجهز طلبك بعناية حتى يصل إليك.</p></div><div className="panel p-5"><PackageCheck className="text-orange-500" /><h3 className="mt-3 font-bold">منتجات أصلية</h3><p className="mt-1 text-sm text-slate-500">اختيارات تقنية موثوقة ومراجعة قبل الشحن.</p></div><div className="panel p-5"><ShoppingBag className="text-orange-500" /><h3 className="mt-3 font-bold">شراء سهل</h3><p className="mt-1 text-sm text-slate-500">أكمل طلبك في دقائق من أي جهاز.</p></div></section></main></div>;
+  return (
+    <div dir="rtl" className="min-h-screen bg-slate-50">
+      <StoreHeader count={count} />
+      <main className="mx-auto max-w-7xl space-y-8 p-4 sm:p-8">
+        <section className="rounded-3xl bg-[#162237] p-7 text-white sm:p-12">
+          <p className="text-sm text-orange-300">متجر حافظ للإلكترونيات</p>
+          <h1 className="mt-3 text-3xl font-bold sm:text-5xl">كل ما تحتاجه من التقنية الحديثة</h1>
+          <p className="mt-4 max-w-xl text-sm leading-7 text-slate-300">منتجات أصلية، عروض مميزة، وتجربة شراء سهلة مع توصيل إلى باب منزلك.</p>
+          <Link to="#products" className="mt-6 inline-flex rounded-xl bg-orange-500 px-5 py-3 text-sm font-bold text-white">تسوق الآن <ArrowLeft className="mr-2" size={17} /></Link>
+        </section>
+
+        <AdsCarousel ads={ads} />
+
+        <section id="products" className="space-y-4">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h2 className="text-2xl font-bold">منتجاتنا</h2>
+              <p className="mt-1 text-sm text-slate-500">اختر منتجاتك وأضفها إلى السلة</p>
+            </div>
+            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="بحث في المنتجات" className="h-11 w-full rounded-xl border border-slate-200 bg-white px-4 sm:w-64" />
+          </div>
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {filtered.map((product) => (
+              <article key={product.id} className="panel overflow-hidden">
+                <div className="relative">
+                  {product.imageUrl ? (
+                    <img src={product.imageUrl} alt={product.name} className="h-52 w-full object-cover" />
+                  ) : (
+                    <div className={`flex h-52 items-center justify-center ${product.surface}`}>
+                      <product.icon size={56} className={product.tint} />
+                    </div>
+                  )}
+                  {product.stock < 5 && product.stock > 0 && <span className="absolute right-3 top-3 rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-800">باقي {product.stock} فقط</span>}
+                </div>
+                <div className="space-y-3 p-4">
+                  <p className="text-xs text-slate-500">{product.category}</p>
+                  <h3 className="font-bold">{product.name}</h3>
+                  <p className="text-sm text-slate-500">{product.spec}</p>
+                  <div className="flex items-center justify-between">
+                    <strong className="text-lg text-orange-600">{money(product.price)}</strong>
+                    <button disabled={product.stock < 1} onClick={() => add(product)} className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white disabled:bg-slate-300">{product.stock ? 'أضف للسلة' : 'غير متوفر'}</button>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="grid gap-4 sm:grid-cols-3">
+          <div className="panel p-5"><Truck className="text-orange-500" /><h3 className="mt-3 font-bold">توصيل موثوق</h3><p className="mt-1 text-sm text-slate-500">نجهز طلبك بعناية حتى يصل إليك.</p></div>
+          <div className="panel p-5"><PackageCheck className="text-orange-500" /><h3 className="mt-3 font-bold">منتجات أصلية</h3><p className="mt-1 text-sm text-slate-500">اختيارات تقنية موثوقة ومراجعة قبل الشحن.</p></div>
+          <div className="panel p-5"><ShoppingBag className="text-orange-500" /><h3 className="mt-3 font-bold">شراء سهل</h3><p className="mt-1 text-sm text-slate-500">أكمل طلبك في دقائق من أي جهاز.</p></div>
+        </section>
+      </main>
+    </div>
+  );
 }
 
 export function CartPage({ products }: VisitorProps) {

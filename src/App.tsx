@@ -305,10 +305,10 @@ function Metric({ title, value, icon: Icon }: { title: string; value: string; ic
 }
 
 function VisitorRoute({ page }: { page: 'store' | 'cart' | 'checkout' }) {
-  const { products, setProducts } = useAppData();
+  const { products, setProducts, ads } = useAppData();
   if (page === 'cart') return <CartPage products={products} setProducts={setProducts} />;
   if (page === 'checkout') return <CheckoutPage products={products} setProducts={setProducts} />;
-  return <Storefront products={products} setProducts={setProducts} />;
+  return <Storefront products={products} setProducts={setProducts} ads={ads} />;
 }
 
 function InventoryPage() {
