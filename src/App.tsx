@@ -26,7 +26,7 @@ import {
 } from 'react-router-dom';
 import AdsManager from './pages/AdsManager';
 import PosPage from './pages/PosPage';
-import { CartPage, CheckoutPage, OrderSuccessPage, Storefront } from './pages/VisitorStore';
+import { CartPage, CheckoutPage, OrderSuccessPage, Storefront, type StoreSettings } from './pages/VisitorStore';
 import {
   initialAds,
   initialProducts,
@@ -49,6 +49,8 @@ type AppData = {
   setSales: React.Dispatch<React.SetStateAction<SalesInvoice[]>>;
   purchases: PurchaseInvoice[];
   setPurchases: React.Dispatch<React.SetStateAction<PurchaseInvoice[]>>;
+  settings: StoreSettings;
+  setSettings: React.Dispatch<React.SetStateAction<StoreSettings>>;
 };
 
 const currency = new Intl.NumberFormat('ar-SA', { maximumFractionDigits: 0 });
@@ -84,7 +86,7 @@ export default function App() {
           <Route index element={<VisitorRoute page="store" />} />
           <Route path="cart" element={<VisitorRoute page="cart" />} />
           <Route path="checkout" element={<VisitorRoute page="checkout" />} />
-          <Route path="order-success" element={<OrderSuccessPage />} />
+          <Route path="order-success" element={<VisitorRoute page="success" />} />
           <Route path="owner-login" element={<Navigate to="/admin" replace />} />
           <Route path="admin" element={<AdminLayout />}>
             <Route index element={<AdminOverview />} />
@@ -94,6 +96,7 @@ export default function App() {
             <Route path="purchases" element={<PurchaseInvoicesPage />} />
             <Route path="reports" element={<ReportsPage />} />
             <Route path="ads" element={<AdsPage />} />
+              <Route path="settings" element={<StoreSettingsPage />} />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Route>
@@ -110,6 +113,16 @@ function AppStateLayout() {
   const [ads, setAds] = usePersistentState('hafez-ads', initialAds);
   const [sales, setSales] = usePersistentState('hafez-sales', initialSales);
   const [purchases, setPurchases] = usePersistentState('hafez-purchases', initialPurchases);
+  const [settings, setSettings] = usePersistentState<StoreSettings>('hafez-store-settings', { storeName: 'حافظ للإلكترونيات الحديثة', storeTagline: 'كل ما تحتاجه من التقنية الحديثة', phone: '' });
+
+  useEffect(() => {
+    if (!supabase) return;
+    let active = true;
+    void supabase.from('store_settings').select('store_name,store_tagline,phone').eq('id', true).maybeSingle().then(({ data }) => {
+      if (active && data) setSettings({ storeName: data.store_name, storeTagline: data.store_tagline, phone: data.phone ?? '' });
+    });
+    return () => { active = false; };
+  }, [setSettings]);
 
   useEffect(() => {
     if (!supabase) return;
@@ -145,6 +158,8 @@ function AppStateLayout() {
     setSales,
     purchases,
     setPurchases,
+    settings,
+    setSettings,
   };
 
   return <Outlet context={context} />;
@@ -184,6 +199,7 @@ function AdminLayout() {
     { to: '/admin/purchases', label: 'فواتير الشراء', icon: ClipboardList },
     { to: '/admin/reports', label: 'التقارير', icon: TrendingUp },
     { to: '/admin/ads', label: 'إدارة الإعلانات', icon: Tag },
+    { to: '/admin/settings', label: 'إعدادات المتجر', icon: Zap },
   ];
 
   return (
@@ -305,11 +321,31 @@ function Metric({ title, value, icon: Icon }: { title: string; value: string; ic
   return <div className="panel p-5"><div className="flex items-center justify-between text-slate-500"><span className="text-sm">{title}</span><Icon size={20} className="text-orange-500" /></div><p className="mt-4 text-xl font-bold">{value}</p></div>;
 }
 
-function VisitorRoute({ page }: { page: 'store' | 'cart' | 'checkout' }) {
-  const { products, setProducts, ads } = useAppData();
-  if (page === 'cart') return <CartPage products={products} setProducts={setProducts} />;
-  if (page === 'checkout') return <CheckoutPage products={products} setProducts={setProducts} />;
-  return <Storefront products={products} setProducts={setProducts} ads={ads} />;
+function VisitorRoute({ page }: { page: 'store' | 'cart' | 'checkout' | 'success' }) {
+  const { products, setProducts, ads, settings } = useAppData();
+  if (page === 'cart') return <CartPage products={products} setProducts={setProducts} settings={settings} />;
+  if (page === 'checkout') return <CheckoutPage products={products} setProducts={setProducts} settings={settings} />;
+  if (page === 'success') return <OrderSuccessPage settings={settings} />;
+  return <Storefront products={products} setProducts={setProducts} ads={ads} settings={settings} />;
+}
+
+function StoreSettingsPage() {
+  const { settings, setSettings } = useAppData();
+  const [draft, setDraft] = useState(settings);
+  const [saving, setSaving] = useState(false);
+  useEffect(() => setDraft(settings), [settings]);
+  const save = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setSaving(true);
+    if (supabase) {
+      const { error } = await supabase.from('store_settings').upsert({ id: true, store_name: draft.storeName.trim(), store_tagline: draft.storeTagline.trim(), phone: draft.phone.trim(), updated_at: new Date().toISOString() });
+      if (error) { window.alert(`تعذر حفظ الإعدادات: ${error.message}`); setSaving(false); return; }
+    }
+    setSettings(draft);
+    setSaving(false);
+    window.alert('تم حفظ إعدادات المتجر.');
+  };
+  return <section className="space-y-5" dir="rtl"><div><h2 className="text-2xl font-bold">إعدادات المتجر</h2><p className="mt-1 text-sm text-slate-500">غيّر اسم النشاط والوصف وبيانات التواصل، وستظهر للزوار تلقائياً.</p></div><form onSubmit={save} className="panel grid max-w-2xl gap-4 p-6"><label className="text-sm font-semibold">اسم المتجر أو النشاط<input required value={draft.storeName} onChange={(event) => setDraft({ ...draft, storeName: event.target.value })} className="mt-2 h-12 w-full rounded-lg border px-3 font-normal" placeholder="مثال: متجر النور للأجهزة" /></label><label className="text-sm font-semibold">الوصف الرئيسي<input required value={draft.storeTagline} onChange={(event) => setDraft({ ...draft, storeTagline: event.target.value })} className="mt-2 h-12 w-full rounded-lg border px-3 font-normal" placeholder="أجهزة أصلية وعروض مميزة" /></label><label className="text-sm font-semibold">رقم التواصل<input value={draft.phone} onChange={(event) => setDraft({ ...draft, phone: event.target.value })} className="mt-2 h-12 w-full rounded-lg border px-3 font-normal" placeholder="اختياري" /></label><button disabled={saving} className="rounded-xl bg-orange-500 px-5 py-3 font-bold text-white disabled:opacity-50">{saving ? 'جارٍ الحفظ...' : 'حفظ إعدادات المتجر'}</button></form></section>;
 }
 
 function InventoryPage() {
