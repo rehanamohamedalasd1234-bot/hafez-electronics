@@ -97,6 +97,7 @@ export default function App() {
             <Route path="reports" element={<ReportsPage />} />
             <Route path="ads" element={<AdsPage />} />
               <Route path="settings" element={<StoreSettingsPage />} />
+              <Route path="business" element={<BusinessPage />} />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Route>
@@ -200,6 +201,7 @@ function AdminLayout() {
     { to: '/admin/reports', label: 'التقارير', icon: TrendingUp },
     { to: '/admin/ads', label: 'إدارة الإعلانات', icon: Tag },
     { to: '/admin/settings', label: 'إعدادات المتجر', icon: Zap },
+    { to: '/admin/business', label: 'النشاط والحسابات', icon: Boxes },
   ];
 
   return (
@@ -346,6 +348,33 @@ function StoreSettingsPage() {
     window.alert('تم حفظ إعدادات المتجر.');
   };
   return <section className="space-y-5" dir="rtl"><div><h2 className="text-2xl font-bold">إعدادات المتجر</h2><p className="mt-1 text-sm text-slate-500">غيّر اسم النشاط والوصف وبيانات التواصل، وستظهر للزوار تلقائياً.</p></div><form onSubmit={save} className="panel grid max-w-2xl gap-4 p-6"><label className="text-sm font-semibold">اسم المتجر أو النشاط<input required value={draft.storeName} onChange={(event) => setDraft({ ...draft, storeName: event.target.value })} className="mt-2 h-12 w-full rounded-lg border px-3 font-normal" placeholder="مثال: متجر النور للأجهزة" /></label><label className="text-sm font-semibold">الوصف الرئيسي<input required value={draft.storeTagline} onChange={(event) => setDraft({ ...draft, storeTagline: event.target.value })} className="mt-2 h-12 w-full rounded-lg border px-3 font-normal" placeholder="أجهزة أصلية وعروض مميزة" /></label><label className="text-sm font-semibold">رقم التواصل<input value={draft.phone} onChange={(event) => setDraft({ ...draft, phone: event.target.value })} className="mt-2 h-12 w-full rounded-lg border px-3 font-normal" placeholder="اختياري" /></label><button disabled={saving} className="rounded-xl bg-orange-500 px-5 py-3 font-bold text-white disabled:opacity-50">{saving ? 'جارٍ الحفظ...' : 'حفظ إعدادات المتجر'}</button></form></section>;
+}
+
+function BusinessPage() {
+  const [name, setName] = useState('');
+  const [slug, setSlug] = useState('');
+  const [type, setType] = useState('electronics');
+  const [businesses, setBusinesses] = useState<{ id: string; name: string; slug: string; business_type: string; role: string }[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const load = async () => {
+    if (!supabase) { setLoading(false); return; }
+    const { data } = await supabase.from('business_members').select('role,businesses(id,name,slug,business_type)').order('created_at');
+    const rows = (data ?? []) as unknown as { role: string; businesses: { id: string; name: string; slug: string; business_type: string } }[];
+    setBusinesses(rows.filter((row) => row.businesses).map((row) => ({ ...row.businesses, role: row.role })));
+    setLoading(false);
+  };
+  useEffect(() => { void load(); }, []);
+  const create = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!supabase) return;
+    setSaving(true);
+    const { error } = await supabase.rpc('create_my_business', { p_name: name, p_slug: slug, p_business_type: type });
+    if (error) window.alert(`تعذر إنشاء النشاط: ${error.message}`);
+    else { setName(''); setSlug(''); window.alert('تم إنشاء النشاط وربط حسابك به.'); await load(); }
+    setSaving(false);
+  };
+  return <section className="space-y-5" dir="rtl"><div><h2 className="text-2xl font-bold">النشاط والحسابات</h2><p className="mt-1 text-sm text-slate-500">كل نشاط مستقل بمنتجاته ومخزونه وطلباته وتقاريره.</p></div><form onSubmit={create} className="panel grid max-w-2xl gap-4 p-6 sm:grid-cols-2"><h3 className="font-bold sm:col-span-2">إنشاء نشاط جديد وربط الحساب الحالي به</h3><label className="text-sm font-semibold sm:col-span-2">اسم النشاط<input required value={name} onChange={(event) => setName(event.target.value)} className="mt-2 h-11 w-full rounded-lg border px-3 font-normal" placeholder="مثال: متجر المنظفات" /></label><label className="text-sm font-semibold">الرابط المختصر<input required pattern="[a-z0-9]+(?:-[a-z0-9]+)*" value={slug} onChange={(event) => setSlug(event.target.value.toLowerCase())} className="mt-2 h-11 w-full rounded-lg border px-3 font-normal" placeholder="cleaning-shop" /><span className="mt-1 block text-xs font-normal text-slate-500">حروف إنجليزية صغيرة وأرقام وشرطة فقط</span></label><label className="text-sm font-semibold">نوع النشاط<select value={type} onChange={(event) => setType(event.target.value)} className="mt-2 h-11 w-full rounded-lg border bg-white px-3 font-normal"><option value="electronics">إلكترونيات</option><option value="cleaning">منظفات</option><option value="clothing">ملابس</option><option value="restaurant">مطعم</option><option value="other">نشاط آخر</option></select></label><button disabled={saving} className="rounded-xl bg-orange-500 px-5 py-3 font-bold text-white disabled:opacity-50 sm:col-span-2">{saving ? 'جارٍ الإنشاء...' : 'إنشاء وربط النشاط'}</button></form><section className="panel p-6"><h3 className="font-bold">الأنشطة المرتبطة بحسابك</h3>{loading ? <p className="mt-4 text-sm text-slate-500">جارٍ التحميل...</p> : businesses.length ? <div className="mt-4 grid gap-3 sm:grid-cols-2">{businesses.map((business) => <div key={business.id} className="rounded-xl border p-4"><p className="font-bold">{business.name}</p><p className="mt-1 text-sm text-slate-500">/{business.slug} · {business.business_type} · صلاحية {business.role}</p></div>)}</div> : <p className="mt-4 text-sm text-slate-500">لم يتم ربط أي نشاط بهذا الحساب بعد.</p>}</section></section>;
 }
 
 function InventoryPage() {
