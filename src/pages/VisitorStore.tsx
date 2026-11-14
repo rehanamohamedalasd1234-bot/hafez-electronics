@@ -47,6 +47,16 @@ function StoreHeader({ count }: { count: number }) {
 
 export function Storefront({ products, setProducts: _setProducts, ads = [] }: VisitorProps) {
   const { add, count } = useCart(products);
+  const navigate = useNavigate();
+  const buyNow = (product: Product) => {
+    const current = readCart();
+    const found = current.find((item) => item.productId === product.id);
+    const next = found
+      ? current.map((item) => item.productId === product.id ? { ...item, quantity: Math.min(product.stock, item.quantity + 1) } : item)
+      : [...current, { productId: product.id, quantity: 1 }];
+    saveCart(next);
+    navigate('/checkout');
+  };
   const [query, setQuery] = useState('');
   const filtered = useMemo(() => products.filter((product) => `${product.name} ${product.category}`.toLowerCase().includes(query.toLowerCase())), [products, query]);
   return (
@@ -76,6 +86,8 @@ export function Storefront({ products, setProducts: _setProducts, ads = [] }: Vi
                 <div className="relative">
                   {product.imageUrl ? (
                     <img src={product.imageUrl} alt={product.name} className="h-52 w-full object-cover" />
+                  ) : product.videoUrl ? (
+                    <video src={product.videoUrl} controls className="h-52 w-full object-cover" aria-label={`فيديو ${product.name}`} />
                   ) : (
                     <div className={`flex h-52 items-center justify-center ${product.surface}`}>
                       <product.icon size={56} className={product.tint} />
@@ -87,9 +99,12 @@ export function Storefront({ products, setProducts: _setProducts, ads = [] }: Vi
                   <p className="text-xs text-slate-500">{product.category}</p>
                   <h3 className="font-bold">{product.name}</h3>
                   <p className="text-sm text-slate-500">{product.spec}</p>
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-2">
                     <strong className="text-lg text-orange-600">{money(product.price)}</strong>
-                    <button disabled={product.stock < 1} onClick={() => add(product)} className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white disabled:bg-slate-300">{product.stock ? 'أضف للسلة' : 'غير متوفر'}</button>
+                    <div className="flex gap-2">
+                      <button disabled={product.stock < 1} onClick={() => buyNow(product)} className="rounded-lg bg-orange-500 px-3 py-2 text-xs font-semibold text-white disabled:bg-slate-300">{product.stock ? 'شراء الآن' : 'غير متوفر'}</button>
+                      <button disabled={product.stock < 1} onClick={() => add(product)} className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white disabled:bg-slate-300">أضف للسلة</button>
+                    </div>
                   </div>
                 </div>
               </article>
