@@ -114,7 +114,7 @@ function AppStateLayout() {
   useEffect(() => {
     if (!supabase) return;
     let active = true;
-    void supabase.from('products').select('id,name,category,barcode,price,cost,stock,spec,image_url').order('id').then(({ data, error }) => {
+    void supabase.from('products').select('id,name,category,barcode,price,cost,stock,spec,image_url,video_url').order('id').then(({ data, error }) => {
       if (!active || error || !data?.length) return;
       setProducts(data.map((row) => {
         const fallback = initialProducts.find((item) => item.id === row.id);
@@ -129,6 +129,7 @@ function AppStateLayout() {
           stock: row.stock,
           spec: row.spec,
           imageUrl: row.image_url ?? undefined,
+          videoUrl: row.video_url ?? undefined,
         } as Product;
       }));
     });
@@ -313,10 +314,36 @@ function VisitorRoute({ page }: { page: 'store' | 'cart' | 'checkout' }) {
 
 function InventoryPage() {
   const { products, setProducts } = useAppData();
+  const blank = (): Product => ({ id: Date.now(), name: '', category: '', barcode: '', price: 0, cost: 0, stock: 0, spec: '', imageUrl: '', videoUrl: '', icon: Zap, tint: 'text-orange-500', surface: 'bg-orange-50' });
   const [editing, setEditing] = useState<Product | null>(null);
-  const saveProduct = (event: FormEvent<HTMLFormElement>) => { event.preventDefault(); if (!editing) return; setProducts((current) => current.map((product) => product.id === editing.id ? editing : product)); setEditing(null); };
-  const deleteProduct = (id: number) => { if (!window.confirm('هل تريد حذف هذا المنتج من البيانات التجريبية؟')) return; setProducts((current) => current.filter((product) => product.id !== id)); };
-  return <section className="panel overflow-x-auto"><div className="p-5"><h2 className="font-bold">المخزون والمنتجات</h2><p className="mt-1 text-xs text-slate-500">تعديل السعر والكمية ورابط الصورة.</p></div>{editing && <form onSubmit={saveProduct} className="grid gap-3 border-y border-slate-100 bg-slate-50 p-4 sm:grid-cols-2"><strong className="sm:col-span-2">تعديل: {editing.name}</strong><label className="text-xs">سعر البيع<input type="number" min="0" value={editing.price} onChange={(e) => setEditing({ ...editing, price: Number(e.target.value) })} className="mt-1 h-10 w-full rounded border px-2" /></label><label className="text-xs">الكمية<input type="number" min="0" value={editing.stock} onChange={(e) => setEditing({ ...editing, stock: Number(e.target.value) })} className="mt-1 h-10 w-full rounded border px-2" /></label><label className="text-xs sm:col-span-2">رابط الصورة<input type="url" value={editing.imageUrl ?? ''} onChange={(e) => setEditing({ ...editing, imageUrl: e.target.value })} className="mt-1 h-10 w-full rounded border px-2" /></label><div className="flex gap-2 sm:col-span-2"><button className="rounded bg-orange-500 px-4 py-2 text-sm text-white">حفظ</button><button type="button" onClick={() => setEditing(null)} className="rounded border px-4 py-2 text-sm">إلغاء</button></div></form>}<table className="w-full min-w-[700px] text-right text-sm"><thead className="bg-slate-50 text-xs text-slate-500"><tr><th className="p-4">المنتج</th><th className="p-4">السعر</th><th className="p-4">الكمية</th><th className="p-4">الإجراءات</th></tr></thead><tbody className="divide-y divide-slate-100">{products.map((product) => <tr key={product.id}><td className="p-4 font-semibold">{product.name}</td><td className="p-4">{money(product.price)}</td><td className="p-4">{product.stock}</td><td className="space-x-2 space-x-reverse p-4"><button onClick={() => setEditing({ ...product })} className="text-orange-600">تعديل</button><button onClick={() => deleteProduct(product.id)} className="text-rose-600">حذف</button></td></tr>)}</tbody></table></section>;
+  const [saving, setSaving] = useState(false);
+  const saveProduct = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!editing || !editing.name.trim() || !editing.barcode.trim()) return;
+    setSaving(true);
+    const payload = { id: editing.id, name: editing.name.trim(), category: editing.category.trim(), barcode: editing.barcode.trim(), price: editing.price, cost: editing.cost, stock: editing.stock, spec: editing.spec.trim(), image_url: editing.imageUrl?.trim() || null, video_url: editing.videoUrl?.trim() || null };
+    if (supabase) {
+      const { error } = await supabase.from('products').upsert(payload);
+      if (error) { window.alert(`تعذر حفظ الصنف: ${error.message}`); setSaving(false); return; }
+    }
+    setProducts((current) => current.some((product) => product.id === editing.id) ? current.map((product) => product.id === editing.id ? editing : product) : [editing, ...current]);
+    setEditing(null);
+    setSaving(false);
+  };
+  const deleteProduct = async (id: number) => {
+    if (!window.confirm('هل تريد حذف هذا الصنف؟')) return;
+    if (supabase) {
+      const { error } = await supabase.from('products').delete().eq('id', id);
+      if (error) { window.alert(`تعذر حذف الصنف: ${error.message}`); return; }
+    }
+    setProducts((current) => current.filter((product) => product.id !== id));
+  };
+  const field = (label: string, key: keyof Product, type = 'text', wide = false) => <label className={`text-sm ${wide ? 'sm:col-span-2' : ''}`}>{label}<input required={key === 'name' || key === 'barcode'} type={type} min={type === 'number' ? 0 : undefined} value={String(editing?.[key] ?? '')} onChange={(event) => setEditing((current) => current ? { ...current, [key]: type === 'number' ? Number(event.target.value) : event.target.value } : current)} className="mt-1 h-11 w-full rounded-lg border border-slate-200 bg-white px-3" /></label>;
+  return <section className="space-y-5" dir="rtl">
+    <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-2xl font-bold">المخزون والمنتجات</h2><p className="mt-1 text-sm text-slate-500">من هنا تضيف الأصناف وتحدد سعر البيع والشراء وبيانات الوسائط.</p></div><button onClick={() => setEditing(blank())} className="rounded-xl bg-orange-500 px-5 py-3 text-sm font-bold text-white">+ إضافة صنف جديد</button></div>
+    {editing && <form onSubmit={saveProduct} className="panel grid gap-4 p-5 sm:grid-cols-2"><div className="flex items-center justify-between sm:col-span-2"><h3 className="font-bold">{products.some((product) => product.id === editing.id) ? `تعديل: ${editing.name}` : 'إضافة صنف جديد'}</h3><button type="button" onClick={() => setEditing(null)} className="text-sm text-slate-500">إلغاء</button></div>{field('اسم الصنف', 'name')}{field('التصنيف', 'category')}{field('الباركود', 'barcode')}{field('سعر البيع', 'price', 'number')}{field('سعر الشراء', 'cost', 'number')}{field('الكمية الحالية', 'stock', 'number')}{field('المواصفات', 'spec', 'text', true)}{field('رابط الصورة', 'imageUrl', 'url', true)}{field('رابط الفيديو', 'videoUrl', 'url', true)}{(editing.imageUrl || editing.videoUrl) && <div className="flex flex-wrap gap-3 sm:col-span-2">{editing.imageUrl && <img src={editing.imageUrl} alt="معاينة الصنف" className="h-24 w-24 rounded-lg object-cover" />}{editing.videoUrl && <video src={editing.videoUrl} controls className="h-24 w-40 rounded-lg object-cover" />}</div>}<button disabled={saving} className="rounded-xl bg-orange-500 px-5 py-3 font-bold text-white disabled:opacity-50 sm:col-span-2">{saving ? 'جارٍ الحفظ...' : 'حفظ بيانات الصنف'}</button></form>}
+    <section className="panel overflow-x-auto"><table className="w-full min-w-[850px] text-right text-sm"><thead className="bg-slate-50 text-xs text-slate-500"><tr><th className="p-4">الصنف</th><th className="p-4">سعر الشراء</th><th className="p-4">سعر البيع</th><th className="p-4">المخزون</th><th className="p-4">الوسائط</th><th className="p-4">الإجراءات</th></tr></thead><tbody className="divide-y divide-slate-100">{products.map((product) => <tr key={product.id}><td className="p-4"><div className="flex items-center gap-3">{product.imageUrl ? <img src={product.imageUrl} alt="" className="h-12 w-12 rounded-lg object-cover" /> : <div className="h-12 w-12 rounded-lg bg-orange-50" />}<div><p className="font-semibold">{product.name}</p><p className="text-xs text-slate-500">{product.category}</p></div></div></td><td className="p-4">{money(product.cost)}</td><td className="p-4 text-orange-600">{money(product.price)}</td><td className="p-4">{product.stock}</td><td className="p-4">{product.imageUrl ? 'صورة ' : ''}{product.videoUrl ? 'فيديو' : !product.imageUrl ? 'بدون' : ''}</td><td className="space-x-2 space-x-reverse p-4"><button onClick={() => setEditing({ ...product })} className="text-orange-600">تعديل</button><button onClick={() => deleteProduct(product.id)} className="text-rose-600">حذف</button></td></tr>)}</tbody></table></section>
+  </section>;
 }
 
 function PurchaseInvoicesPage() {

@@ -21,6 +21,7 @@ create table if not exists public.products (
   stock integer not null default 0 check (stock >= 0),
   spec text not null default '',
   image_url text,
+  video_url text,
   updated_at timestamptz not null default now()
 );
 

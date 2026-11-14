@@ -18,6 +18,7 @@ export type Product = {
   stock: number;
   spec: string;
   imageUrl?: string;
+  videoUrl?: string;
   icon: LucideIcon;
   tint: string;
   surface: string;
