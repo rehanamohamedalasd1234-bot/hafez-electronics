@@ -52,7 +52,12 @@ type AppData = {
   setPurchases: React.Dispatch<React.SetStateAction<PurchaseInvoice[]>>;
   settings: StoreSettings;
   setSettings: React.Dispatch<React.SetStateAction<StoreSettings>>;
+  businesses: Business[];
+  activeBusinessId: string | null;
+  setActiveBusinessId: React.Dispatch<React.SetStateAction<string | null>>;
 };
+
+type Business = { id: string; name: string; slug: string; business_type: string; role: string };
 
 const currency = new Intl.NumberFormat('ar-SA', { maximumFractionDigits: 0 });
 const money = (value: number) => `${currency.format(value)} ر.س`;
@@ -117,6 +122,21 @@ function AppStateLayout() {
   const [sales, setSales] = usePersistentState('hafez-sales', initialSales);
   const [purchases, setPurchases] = usePersistentState('hafez-purchases', initialPurchases);
   const [settings, setSettings] = usePersistentState<StoreSettings>('hafez-store-settings', { storeName: 'حافظ للإلكترونيات الحديثة', storeTagline: 'كل ما تحتاجه من التقنية الحديثة', phone: '' });
+  const [businesses, setBusinesses] = useState<Business[]>([]);
+  const [activeBusinessId, setActiveBusinessId] = usePersistentState<string | null>('hafez-active-business-id', null);
+
+  useEffect(() => {
+    if (!supabase || !window.location.pathname.startsWith('/admin')) return;
+    let active = true;
+    void supabase.from('business_members').select('role,businesses(id,name,slug,business_type)').order('created_at').then(({ data }) => {
+      if (!active) return;
+      const rows = (data ?? []) as unknown as { role: string; businesses: Omit<Business, 'role'> }[];
+      const next = rows.filter((row) => row.businesses).map((row) => ({ ...row.businesses, role: row.role }));
+      setBusinesses(next);
+      if (next.length && !next.some((business) => business.id === activeBusinessId)) setActiveBusinessId(next[0].id);
+    });
+    return () => { active = false; };
+  }, [activeBusinessId, setActiveBusinessId]);
 
   useEffect(() => {
     if (!supabase) return;
@@ -133,10 +153,11 @@ function AppStateLayout() {
     const isAdmin = window.location.pathname.startsWith('/admin');
     const businessSlug = window.location.pathname.startsWith('/store/') ? window.location.pathname.split('/')[2] : null;
     const request = isAdmin
-      ? supabase.from('products').select('id,name,category,barcode,price,cost,stock,spec,image_url,video_url,business_id').order('id')
+      ? supabase.from('products').select('id,name,category,barcode,price,cost,stock,spec,image_url,video_url,business_id').eq('business_id', activeBusinessId ?? '').order('id')
       : supabase.rpc('get_public_products', { p_business_slug: businessSlug });
     void request.then(({ data, error }) => {
-      if (!active || error || !data?.length) return;
+      if (!active || error) return;
+      if (!data?.length) { setProducts([]); return; }
       setProducts((data as { id: number; name: string; category: string; barcode: string; price: number; cost: number; stock: number; spec: string; image_url?: string | null; video_url?: string | null }[]).map((row) => {
         const fallback = initialProducts.find((item) => item.id === row.id);
         return {
@@ -155,7 +176,7 @@ function AppStateLayout() {
       }));
     });
     return () => { active = false; };
-  }, [setProducts]);
+  }, [setProducts, activeBusinessId]);
 
   const context: AppData = {
     products,
@@ -168,6 +189,9 @@ function AppStateLayout() {
     setPurchases,
     settings,
     setSettings,
+    businesses,
+    activeBusinessId,
+    setActiveBusinessId,
   };
 
   return <Outlet context={context} />;
@@ -199,6 +223,7 @@ function OnlineOrdersPage() {
 function AdminLayout() {
  const [menuOpen, setMenuOpen] = useState(false);
   const appData = useAppData();
+  const activeBusiness = appData.businesses.find((business) => business.id === appData.activeBusinessId);
   const links = [
     { to: '/admin', label: 'نظرة عامة', icon: LayoutDashboard, end: true },
     { to: '/admin/orders', label: 'طلبات المتجر', icon: ClipboardList },
@@ -278,6 +303,8 @@ function AdminLayout() {
             <h1 className="font-bold">لوحة تحكم المالك</h1>
           </div>
           <div className="flex items-center gap-3">
+            {appData.businesses.length > 0 && <label className="flex items-center gap-2 text-xs font-semibold text-slate-600"><span className="hidden sm:inline">النشاط الحالي</span><select value={appData.activeBusinessId ?? ''} onChange={(event) => appData.setActiveBusinessId(event.target.value || null)} className="h-10 max-w-[180px] rounded-lg border border-slate-200 bg-white px-2 text-sm"><option value="" disabled>اختر النشاط</option>{appData.businesses.map((business) => <option key={business.id} value={business.id}>{business.name}</option>)}</select></label>}
+            {activeBusiness && <span className="hidden rounded-full bg-orange-50 px-3 py-2 text-xs text-orange-700 md:inline">/{activeBusiness.slug}</span>}
             <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">دخول مفتوح</span>
           </div>
         </header>
@@ -386,17 +413,15 @@ function BusinessPage() {
 }
 
 function InventoryPage() {
-  const { products, setProducts } = useAppData();
+  const { products, setProducts, activeBusinessId } = useAppData();
   const blank = (): Product => ({ id: Date.now(), name: '', category: '', barcode: '', price: 0, cost: 0, stock: 0, spec: '', imageUrl: '', videoUrl: '', icon: Zap, tint: 'text-orange-500', surface: 'bg-orange-50' });
   const [editing, setEditing] = useState<Product | null>(null);
   const [saving, setSaving] = useState(false);
-  const [businessId, setBusinessId] = useState<string | null>(null);
-  useEffect(() => { void supabase?.from('business_members').select('business_id').order('created_at').limit(1).maybeSingle().then(({ data }) => setBusinessId(data?.business_id ?? null)); }, []);
   const saveProduct = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!editing || !editing.name.trim() || !editing.barcode.trim() || !businessId) { if (!businessId) window.alert('أنشئ نشاطاً واربط الحساب به أولاً.'); return; }
+    if (!editing || !editing.name.trim() || !editing.barcode.trim() || !activeBusinessId) { if (!activeBusinessId) window.alert('اختر نشاطاً أولاً من محدد النشاط.'); return; }
     setSaving(true);
-    const payload = { id: editing.id, business_id: businessId, name: editing.name.trim(), category: editing.category.trim(), barcode: editing.barcode.trim(), price: editing.price, cost: editing.cost, stock: editing.stock, spec: editing.spec.trim(), image_url: editing.imageUrl?.trim() || null, video_url: editing.videoUrl?.trim() || null };
+    const payload = { id: editing.id, business_id: activeBusinessId, name: editing.name.trim(), category: editing.category.trim(), barcode: editing.barcode.trim(), price: editing.price, cost: editing.cost, stock: editing.stock, spec: editing.spec.trim(), image_url: editing.imageUrl?.trim() || null, video_url: editing.videoUrl?.trim() || null };
     if (supabase) {
       const { error } = await supabase.from('products').upsert(payload);
       if (error) { window.alert(`تعذر حفظ الصنف: ${error.message}`); setSaving(false); return; }
