@@ -23,6 +23,7 @@ import {
   Routes,
   Navigate,
   useOutletContext,
+  useParams,
 } from 'react-router-dom';
 import AdsManager from './pages/AdsManager';
 import PosPage from './pages/PosPage';
@@ -84,6 +85,7 @@ export default function App() {
       <Routes>
         <Route element={<AppStateLayout />}>
           <Route index element={<VisitorRoute page="store" />} />
+          <Route path="store/:businessSlug" element={<VisitorRoute page="store" />} />
           <Route path="cart" element={<VisitorRoute page="cart" />} />
           <Route path="checkout" element={<VisitorRoute page="checkout" />} />
           <Route path="order-success" element={<VisitorRoute page="success" />} />
@@ -128,9 +130,14 @@ function AppStateLayout() {
   useEffect(() => {
     if (!supabase) return;
     let active = true;
-    void supabase.from('products').select('id,name,category,barcode,price,cost,stock,spec,image_url,video_url').order('id').then(({ data, error }) => {
+    const isAdmin = window.location.pathname.startsWith('/admin');
+    const businessSlug = window.location.pathname.startsWith('/store/') ? window.location.pathname.split('/')[2] : null;
+    const request = isAdmin
+      ? supabase.from('products').select('id,name,category,barcode,price,cost,stock,spec,image_url,video_url,business_id').order('id')
+      : supabase.rpc('get_public_products', { p_business_slug: businessSlug });
+    void request.then(({ data, error }) => {
       if (!active || error || !data?.length) return;
-      setProducts(data.map((row) => {
+      setProducts((data as { id: number; name: string; category: string; barcode: string; price: number; cost: number; stock: number; spec: string; image_url?: string | null; video_url?: string | null }[]).map((row) => {
         const fallback = initialProducts.find((item) => item.id === row.id);
         return {
           ...fallback,
@@ -324,11 +331,12 @@ function Metric({ title, value, icon: Icon }: { title: string; value: string; ic
 }
 
 function VisitorRoute({ page }: { page: 'store' | 'cart' | 'checkout' | 'success' }) {
+  const { businessSlug } = useParams<{ businessSlug: string }>();
   const { products, setProducts, ads, settings } = useAppData();
   if (page === 'cart') return <CartPage products={products} setProducts={setProducts} settings={settings} />;
-  if (page === 'checkout') return <CheckoutPage products={products} setProducts={setProducts} settings={settings} />;
+  if (page === 'checkout') return <CheckoutPage products={products} setProducts={setProducts} settings={settings} businessSlug={businessSlug} />;
   if (page === 'success') return <OrderSuccessPage settings={settings} />;
-  return <Storefront products={products} setProducts={setProducts} ads={ads} settings={settings} />;
+  return <Storefront products={products} setProducts={setProducts} ads={ads} settings={settings} businessSlug={businessSlug} />;
 }
 
 function StoreSettingsPage() {
@@ -382,11 +390,13 @@ function InventoryPage() {
   const blank = (): Product => ({ id: Date.now(), name: '', category: '', barcode: '', price: 0, cost: 0, stock: 0, spec: '', imageUrl: '', videoUrl: '', icon: Zap, tint: 'text-orange-500', surface: 'bg-orange-50' });
   const [editing, setEditing] = useState<Product | null>(null);
   const [saving, setSaving] = useState(false);
+  const [businessId, setBusinessId] = useState<string | null>(null);
+  useEffect(() => { void supabase?.from('business_members').select('business_id').order('created_at').limit(1).maybeSingle().then(({ data }) => setBusinessId(data?.business_id ?? null)); }, []);
   const saveProduct = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!editing || !editing.name.trim() || !editing.barcode.trim()) return;
+    if (!editing || !editing.name.trim() || !editing.barcode.trim() || !businessId) { if (!businessId) window.alert('أنشئ نشاطاً واربط الحساب به أولاً.'); return; }
     setSaving(true);
-    const payload = { id: editing.id, name: editing.name.trim(), category: editing.category.trim(), barcode: editing.barcode.trim(), price: editing.price, cost: editing.cost, stock: editing.stock, spec: editing.spec.trim(), image_url: editing.imageUrl?.trim() || null, video_url: editing.videoUrl?.trim() || null };
+    const payload = { id: editing.id, business_id: businessId, name: editing.name.trim(), category: editing.category.trim(), barcode: editing.barcode.trim(), price: editing.price, cost: editing.cost, stock: editing.stock, spec: editing.spec.trim(), image_url: editing.imageUrl?.trim() || null, video_url: editing.videoUrl?.trim() || null };
     if (supabase) {
       const { error } = await supabase.from('products').upsert(payload);
       if (error) { window.alert(`تعذر حفظ الصنف: ${error.message}`); setSaving(false); return; }

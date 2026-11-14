@@ -24,6 +24,7 @@ type VisitorProps = {
   setProducts: React.Dispatch<React.SetStateAction<Product[]>>;
   ads?: Ad[];
   settings?: StoreSettings;
+  businessSlug?: string;
 };
 const money = (value: number) => `${new Intl.NumberFormat('ar-SA', { maximumFractionDigits: 0 }).format(value)} ر.س`;
 const cartKey = 'hafez-online-cart';
@@ -47,9 +48,10 @@ function StoreHeader({ count, settings }: { count: number; settings?: StoreSetti
   return <header className="sticky top-0 z-20 flex items-center justify-between border-b border-white/10 bg-[#101828]/95 px-5 py-4 text-white backdrop-blur sm:px-10"><Link to="/" className="text-lg font-bold">{settings?.storeName || 'حافظ للإلكترونيات الحديثة'}</Link><nav className="flex items-center gap-4 text-sm"><Link to="/" className="hidden text-slate-300 hover:text-white sm:inline">الرئيسية</Link><Link to="/cart" className="relative rounded-lg bg-white/10 px-3 py-2 text-orange-200"><ShoppingBag className="ml-1 inline" size={17} />السلة{count > 0 && <span className="mr-1 rounded-full bg-orange-500 px-1.5 text-xs text-white">{count}</span>}</Link><Link to="/admin" className="text-xs text-orange-300 hover:text-orange-200 sm:text-sm"><span className="sm:hidden">المالك</span><span className="hidden sm:inline">دخول المالك</span></Link></nav></header>;
 }
 
-export function Storefront({ products, setProducts: _setProducts, ads = [], settings }: VisitorProps) {
+export function Storefront({ products, setProducts: _setProducts, ads = [], settings, businessSlug }: VisitorProps) {
   const { add, count } = useCart(products);
   const navigate = useNavigate();
+  useEffect(() => { if (businessSlug) localStorage.setItem('hafez-business-slug', businessSlug); }, [businessSlug]);
   const buyNow = (product: Product) => {
     const current = readCart();
     const found = current.find((item) => item.productId === product.id);
@@ -130,7 +132,7 @@ export function CartPage({ products, settings }: VisitorProps) {
   return <div dir="rtl" className="min-h-screen bg-slate-50"><StoreHeader count={count} settings={settings} /><main className="mx-auto max-w-4xl space-y-5 p-4 sm:p-8"><Link to="/" className="inline-flex items-center gap-2 text-sm text-orange-600"><ArrowLeft size={16} />متابعة التسوق</Link><div className="panel p-5 sm:p-7"><h1 className="text-2xl font-bold">سلة التسوق</h1>{lines.length ? <><div className="mt-6 divide-y divide-slate-100">{lines.map((line) => <div key={line.product.id} className="flex flex-wrap items-center gap-4 py-4"><img src={line.product.imageUrl} alt="" className="h-20 w-20 rounded-lg object-cover" /><div className="min-w-[150px] flex-1"><h2 className="font-bold">{line.product.name}</h2><p className="mt-1 text-sm text-slate-500">{money(line.product.price)}</p></div><div className="flex items-center gap-2 rounded-lg border bg-white p-1"><button onClick={() => update(line.product.id, line.quantity - 1)} className="p-1"><Minus size={15} /></button><span className="min-w-6 text-center">{line.quantity}</span><button onClick={() => update(line.product.id, line.quantity + 1)} className="p-1"><Plus size={15} /></button></div><strong>{money(line.product.price * line.quantity)}</strong><button onClick={() => update(line.product.id, 0)} className="text-rose-500"><Trash2 size={17} /></button></div>)}</div><div className="mt-5 flex items-center justify-between border-t pt-5"><span className="text-slate-500">الإجمالي</span><strong className="text-2xl text-orange-600">{money(total)}</strong></div><button onClick={() => navigate('/checkout')} className="mt-5 w-full rounded-xl bg-orange-500 px-5 py-3 font-bold text-white">متابعة إلى الدفع</button></> : <div className="py-16 text-center"><ShoppingBag className="mx-auto text-slate-300" size={46} /><p className="mt-4 text-slate-500">السلة فارغة</p><Link to="/" className="mt-5 inline-block rounded-xl bg-orange-500 px-5 py-3 text-sm font-bold text-white">تصفح المنتجات</Link></div>}</div></main></div>;
 }
 
-export function CheckoutPage({ products, setProducts, settings }: VisitorProps) {
+export function CheckoutPage({ products, setProducts, settings, businessSlug }: VisitorProps) {
   const { lines, count, total, clear } = useCart(products);
   const navigate = useNavigate();
   const [form, setForm] = useState({ name: '', phone: '', city: '', address: '', notes: '', paymentMethod: 'cash_on_delivery' as OnlineOrder['paymentMethod'] });
@@ -145,7 +147,9 @@ export function CheckoutPage({ products, setProducts, settings }: VisitorProps) 
     const items = lines.map((line) => ({ product_id: line.product.id, quantity: line.quantity }));
     let order: OnlineOrder;
     if (supabase) {
+      const activeBusinessSlug = businessSlug ?? localStorage.getItem('hafez-business-slug') ?? null;
       const { data, error } = await supabase.rpc('create_online_order', {
+        p_business_slug: activeBusinessSlug,
         p_customer_name: form.name,
         p_customer_phone: form.phone,
         p_city: form.city,
