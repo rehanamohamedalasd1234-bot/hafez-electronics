@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import {
   AlertTriangle,
   ArrowRight,
@@ -80,6 +80,26 @@ function usePersistentState<T>(key: string, initialValue: T, hydrate?: (saved: T
   return [value, setValue] as const;
 }
 
+function useBusinessPersistentState<T>(prefix: string, businessId: string | null, initialValue: T) {
+  const [value, setValue] = useState<T>(initialValue);
+  const loadedKey = useRef<string | null>(null);
+  useEffect(() => {
+    const key = `${prefix}-${businessId ?? 'shared'}`;
+    loadedKey.current = key;
+    try {
+      const saved = localStorage.getItem(key);
+      setValue(saved ? JSON.parse(saved) as T : initialValue);
+    } catch {
+      setValue(initialValue);
+    }
+  }, [businessId, prefix, initialValue]);
+  useEffect(() => {
+    const key = `${prefix}-${businessId ?? 'shared'}`;
+    if (loadedKey.current === key) localStorage.setItem(key, JSON.stringify(value));
+  }, [businessId, prefix, value]);
+  return [value, setValue] as const;
+}
+
 function useAppData() {
   return useOutletContext<AppData>();
 }
@@ -118,12 +138,12 @@ function AppStateLayout() {
     ...initialProducts.find((item) => item.id === product.id),
     ...product,
   })));
-  const [ads, setAds] = usePersistentState('hafez-ads', initialAds);
-  const [sales, setSales] = usePersistentState('hafez-sales', initialSales);
-  const [purchases, setPurchases] = usePersistentState('hafez-purchases', initialPurchases);
-  const [settings, setSettings] = usePersistentState<StoreSettings>('hafez-store-settings', { storeName: 'حافظ للإلكترونيات الحديثة', storeTagline: 'كل ما تحتاجه من التقنية الحديثة', phone: '' });
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [activeBusinessId, setActiveBusinessId] = usePersistentState<string | null>('hafez-active-business-id', null);
+  const [ads, setAds] = useBusinessPersistentState('hafez-ads', activeBusinessId, initialAds);
+  const [sales, setSales] = useBusinessPersistentState('hafez-sales', activeBusinessId, initialSales);
+  const [purchases, setPurchases] = useBusinessPersistentState('hafez-purchases', activeBusinessId, initialPurchases);
+  const [settings, setSettings] = usePersistentState<StoreSettings>('hafez-store-settings', { storeName: 'حافظ للإلكترونيات الحديثة', storeTagline: 'كل ما تحتاجه من التقنية الحديثة', phone: '' });
 
   useEffect(() => {
     if (!supabase || !window.location.pathname.startsWith('/admin')) return;
@@ -139,13 +159,13 @@ function AppStateLayout() {
   }, [activeBusinessId, setActiveBusinessId]);
 
   useEffect(() => {
-    if (!supabase) return;
+    if (!supabase || !activeBusinessId) return;
     let active = true;
-    void supabase.from('store_settings').select('store_name,store_tagline,phone').eq('id', true).maybeSingle().then(({ data }) => {
+    void supabase.from('store_settings').select('store_name,store_tagline,phone').eq('business_id', activeBusinessId).maybeSingle().then(({ data }) => {
       if (active && data) setSettings({ storeName: data.store_name, storeTagline: data.store_tagline, phone: data.phone ?? '' });
     });
     return () => { active = false; };
-  }, [setSettings]);
+  }, [activeBusinessId, setSettings]);
 
   useEffect(() => {
     if (!supabase) return;
@@ -367,15 +387,15 @@ function VisitorRoute({ page }: { page: 'store' | 'cart' | 'checkout' | 'success
 }
 
 function StoreSettingsPage() {
-  const { settings, setSettings } = useAppData();
+  const { settings, setSettings, activeBusinessId } = useAppData();
   const [draft, setDraft] = useState(settings);
   const [saving, setSaving] = useState(false);
   useEffect(() => setDraft(settings), [settings]);
   const save = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setSaving(true);
-    if (supabase) {
-      const { error } = await supabase.from('store_settings').upsert({ id: true, store_name: draft.storeName.trim(), store_tagline: draft.storeTagline.trim(), phone: draft.phone.trim(), updated_at: new Date().toISOString() });
+    if (supabase && activeBusinessId) {
+      const { error } = await supabase.from('store_settings').upsert({ business_id: activeBusinessId, store_name: draft.storeName.trim(), store_tagline: draft.storeTagline.trim(), phone: draft.phone.trim(), updated_at: new Date().toISOString() }, { onConflict: 'business_id' });
       if (error) { window.alert(`تعذر حفظ الإعدادات: ${error.message}`); setSaving(false); return; }
     }
     setSettings(draft);
